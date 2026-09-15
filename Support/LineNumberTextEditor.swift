@@ -26,20 +26,20 @@ struct LineNumberTextEditor: View {
                 .allowsHitTesting(false)
                 .accessibilityHidden(true)
             .frame(width: 58)
-            .background(Color(red: 0.95, green: 0.95, blue: 0.94))
+            .background(PaperTheme.gutterBackground)
 
             Rectangle()
-                .fill(Color(red: 0.84, green: 0.84, blue: 0.83))
+                .fill(PaperTheme.divider)
                 .frame(width: 1)
 
             TextEditor(text: $text)
                 .font(.system(size: 16, weight: .regular, design: .monospaced))
                 .foregroundStyle(Color(red: 0.08, green: 0.08, blue: 0.09))
-                .tint(Color(red: 0.20, green: 0.38, blue: 0.82))
+                .tint(PaperTheme.accent)
                 .scrollContentBackground(.hidden)
                 .padding(.horizontal, 12)
                 .padding(.vertical, 8)
-                .background(Color(red: 0.99, green: 0.99, blue: 0.98))
+                .background(PaperTheme.editorBackground)
         }
         .accessibilityElement(children: .contain)
     }

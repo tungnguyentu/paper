@@ -9,16 +9,16 @@ struct ContentView: View {
             .toolbar {
                 ToolbarItemGroup(placement: .navigation) {
                     Button(action: store.newDocument) {
-                        Image(systemName: "plus")
+                        Label("New Document", systemImage: "plus")
                     }
+                    .labelStyle(.iconOnly)
                     .help("New Document")
-                    .accessibilityLabel("New Document")
 
                     Button(action: { store.showingImporter = true }) {
-                        Image(systemName: "folder")
+                        Label("Open Text File", systemImage: "folder")
                     }
+                    .labelStyle(.iconOnly)
                     .help("Open Text File")
-                    .accessibilityLabel("Open Text File")
                 }
 
                 ToolbarItem(placement: .principal) {
@@ -27,21 +27,23 @@ struct ContentView: View {
 
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button(action: store.requestSave) {
-                        Image(systemName: "square.and.arrow.down")
+                        Label("Save", systemImage: "square.and.arrow.down")
                     }
+                    .labelStyle(.iconOnly)
                     .help("Save")
-                    .accessibilityLabel("Save")
                     .disabled(!store.isDirty && store.fileURL != nil)
 
                     Menu {
-                        Button("New Document", action: store.newDocument)
-                        Button("Open…") { store.showingImporter = true }
+                        Button("New Document", systemImage: "doc.badge.plus", action: store.newDocument)
+                        Button("Open…", systemImage: "folder") { store.showingImporter = true }
                         Divider()
-                        Button("Save As…") { store.showingExporter = true }
+                        Button("Save As…", systemImage: "square.and.arrow.down") {
+                            store.showingExporter = true
+                        }
                     } label: {
-                        Image(systemName: "ellipsis")
+                        Label("More document actions", systemImage: "ellipsis")
                     }
-                    .accessibilityLabel("More document actions")
+                    .labelStyle(.iconOnly)
                 }
             }
             .fileImporter(isPresented: $store.showingImporter, allowedContentTypes: [.plainText]) { result in

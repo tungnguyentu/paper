@@ -11,8 +11,16 @@ let package = Package(
         .executableTarget(
             name: "Paper",
             path: ".",
-            exclude: [".codex", "dist", "script"],
-            sources: ["App", "Models", "Stores", "Support", "Views"]
+            exclude: [
+                ".codex",
+                "AGENTS.md",
+                "README.md",
+                "dist",
+                "docs",
+                "script"
+            ],
+            sources: ["App", "Models", "Stores", "Support", "Views"],
+            resources: [.copy("Resources")]
         )
     ]
 )

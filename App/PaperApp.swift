@@ -8,9 +8,10 @@ struct PaperApp: App {
         WindowGroup {
             ContentView(store: store)
                 .frame(minWidth: 720, minHeight: 460)
+                .tint(PaperTheme.accent)
         }
         .windowStyle(.titleBar)
-        .windowToolbarStyle(.unifiedCompact(showsTitle: false))
+        .windowToolbarStyle(.unified(showsTitle: false))
         .commands {
             CommandGroup(after: .newItem) {
                 Button("New") { store.newDocument() }
