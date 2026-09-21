@@ -230,6 +230,12 @@ Rules that must stay true:
   replaced. Every path that clears the modified flag routes through one
   funnel in `Stores/DocumentStore.swift`; a new path that clears the flag
   without going through it will strand a copy and resurrect stale text.
+- **Only a graceful quit runs the termination path.** Quitting from the menu,
+  ⌘Q, logout, or restart delivers an Apple event, so `applicationWillTerminate`
+  flushes a final capture and removes the sentinel. Signals (`kill`, `pkill`,
+  force-quit) do not — the process dies without the hook running, which is
+  correct: the sentinel stays and the next launch treats it as an unexpected
+  exit. Never use `pkill` to simulate a clean quit when verifying recovery.
 - **Recovered copies never expire.** They re-announce on every launch until
   they are saved or discarded. Dismissing the notice hides it without
   discarding; discarding lives in the overflow menu behind its own
