@@ -7,31 +7,17 @@ struct ContentView: View {
     var body: some View {
         EditorView(store: store)
             .toolbar {
-                ToolbarItemGroup(placement: .navigation) {
-                    Button(action: store.newDocument) {
-                        Label("New Document", systemImage: "plus")
-                    }
-                    .labelStyle(.iconOnly)
-                    .help("New Document")
-
-                    Button(action: { store.showingImporter = true }) {
-                        Label("Open Text File", systemImage: "folder")
-                    }
-                    .labelStyle(.iconOnly)
-                    .help("Open Text File")
-                }
-
                 ToolbarItem(placement: .principal) {
                     DocumentTitle(store: store)
                 }
 
                 ToolbarItemGroup(placement: .primaryAction) {
                     Button(action: store.requestSave) {
-                        Label("Save", systemImage: "square.and.arrow.down")
+                        Label("Save", systemImage: "tray.and.arrow.down")
                     }
                     .labelStyle(.iconOnly)
                     .help("Save")
-                    .disabled(!store.isDirty && store.fileURL != nil)
+                    .disabled(!store.isDirty)
 
                     Menu {
                         Button("New Document", systemImage: "doc.badge.plus", action: store.newDocument)
@@ -76,6 +62,7 @@ private struct DocumentTitle: View {
     @Bindable var store: DocumentStore
     @State private var draftTitle = ""
     @State private var isRenaming = false
+    @State private var isHovering = false
     @FocusState private var titleFieldIsFocused: Bool
 
     var body: some View {
@@ -84,28 +71,55 @@ private struct DocumentTitle: View {
                 TextField("Document title", text: $draftTitle)
                     .textFieldStyle(.roundedBorder)
                     .font(.headline)
-                    .frame(width: 220)
+                    .multilineTextAlignment(.center)
+                    .frame(minWidth: 180, maxWidth: 280)
                     .focused($titleFieldIsFocused)
                     .onSubmit(commitRename)
                     .onExitCommand(perform: cancelRename)
             } else {
-                HStack(spacing: 5) {
-                    Text(store.title)
-                        .font(.headline)
-                        .lineLimit(1)
-                    if store.isDirty {
-                        Circle()
-                            .fill(.secondary)
-                            .frame(width: 5, height: 5)
-                            .accessibilityLabel("Modified")
+                Button(action: beginRename) {
+                    VStack(spacing: 1) {
+                        HStack(spacing: 5) {
+                            Text(store.title)
+                                .font(.headline)
+                                .lineLimit(1)
+                            if store.isDirty {
+                                Circle()
+                                    .fill(.secondary)
+                                    .frame(width: 5, height: 5)
+                                    .accessibilityLabel("Modified")
+                            }
+                            Image(systemName: "pencil")
+                                .font(.system(size: 10, weight: .semibold))
+                                .foregroundStyle(.secondary)
+                                .opacity(isHovering ? 1 : 0)
+                        }
+                        Text(store.subtitle)
+                            .font(.caption)
+                            .foregroundStyle(.secondary)
+                            .lineLimit(1)
+                    }
+                    .padding(.horizontal, 8)
+                    .padding(.vertical, 3)
+                    .contentShape(RoundedRectangle(cornerRadius: 6))
+                    .background {
+                        RoundedRectangle(cornerRadius: 6)
+                            .fill(Color(nsColor: .quaternaryLabelColor).opacity(isHovering ? 0.5 : 0))
                     }
                 }
-                .onTapGesture(count: 2, perform: beginRename)
-                .accessibilityHint("Double-click to rename")
+                .buttonStyle(.plain)
+                .onHover { isHovering = $0 }
+                .help("Rename document")
+                .accessibilityHint("Click to rename")
             }
         }
         .accessibilityElement(children: .combine)
-        .accessibilityLabel(store.isDirty ? "\(store.title), modified" : store.title)
+        .accessibilityLabel(accessibilityLabel)
+    }
+
+    private var accessibilityLabel: String {
+        let base = "\(store.title), \(store.subtitle)"
+        return store.isDirty ? "\(base), modified" : base
     }
 
     private func beginRename() {
