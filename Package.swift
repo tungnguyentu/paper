@@ -17,10 +17,16 @@ let package = Package(
                 "README.md",
                 "dist",
                 "docs",
-                "script"
+                "script",
+                "Tests"
             ],
             sources: ["App", "Models", "Stores", "Support", "Views"],
             resources: [.copy("Resources")]
+        ),
+        .testTarget(
+            name: "PaperTests",
+            dependencies: ["Paper"],
+            path: "Tests/PaperTests"
         )
     ]
 )
