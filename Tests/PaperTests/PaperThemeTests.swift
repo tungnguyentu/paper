@@ -133,6 +133,20 @@ final class PaperThemeTests: XCTestCase {
         }
     }
 
+    /// The editor derives its selection fill from the accent with
+    /// `withAlphaComponent`, which must not flatten the dynamic color into a
+    /// fixed one — otherwise the selection would stay light in dark appearance.
+    func testDerivedSelectionFillStillAdapts() throws {
+        let selectionFill = PaperTheme.nsAccent.withAlphaComponent(0.22)
+
+        let light = try resolved(selectionFill, in: lightAppearance)
+        let dark = try resolved(selectionFill, in: darkAppearance)
+
+        XCTAssertEqual(light.alphaComponent, 0.22, accuracy: 0.01)
+        XCTAssertEqual(dark.alphaComponent, 0.22, accuracy: 0.01)
+        XCTAssertNotEqual(light.redComponent, dark.redComponent)
+    }
+
     // MARK: - KTD1: vibrant and high-contrast appearances resolve, never fall back
 
     func testHighContrastDarkAppearancesDoNotFallBackToLight() throws {
