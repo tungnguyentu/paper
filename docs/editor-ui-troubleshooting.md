@@ -169,3 +169,48 @@ as `LineNumberTextEditor` (`NSViewRepresentable`) in
 `Support/LineNumberTextEditor.swift`. Line numbers are drawn by
 `Support/LineNumberRulerView.swift`. Theme colors live in
 `Support/PaperTheme.swift` (both `Color` and `NSColor` variants).
+
+## Appearance and dark mode
+
+Every `PaperTheme` token is a dynamic `NSColor` with a light and a dark value,
+bridged to SwiftUI with `Color(nsColor:)`. Three rules keep the editor
+adapting correctly:
+
+- **Dynamic colors resolve at draw time.** AppKit resolves them against
+  `NSAppearance.current`, which Cocoa sets automatically inside `draw(_:)`,
+  `layout()`, `updateConstraints()`, and `updateLayer()`. The line-number
+  ruler already fills inside `draw(_:)`, so it adapts with no extra plumbing.
+- **Never store a resolved `CGColor`.** A `CGColor` captured from an `NSColor`
+  is a fixed value and will not follow an appearance change. Assign `NSColor`
+  and let drawing resolve it.
+- **Never read a dynamic color's components outside a drawing context.** Doing
+  so resolves the color against whatever appearance happened to be current at
+  that moment — the cause of the classic "launched in dark mode, painted
+  light" bug. When a component value is genuinely needed outside drawing, wrap
+  the read in `NSAppearance.performAsCurrentDrawingAppearance(_:)`.
+
+`usesAdaptiveColorMappingForDarkAppearance` stays **off**. It maps
+component-based colors by inverting brightness, which fights the hand-authored
+dark palette rather than using it.
+
+Vibrant and high-contrast appearance names (`.vibrantDark`,
+`.accessibilityHighContrastDarkAqua`, and their light counterparts) are matched
+explicitly in the token provider, so a window drawn with vibrancy never falls
+back to the light value.
+
+### Verifying dark mode
+
+`Tests/PaperTests/PaperThemeTests.swift` resolves each token under the light
+and dark appearances and asserts the light values are unchanged, the dark
+palette is ordered correctly, and body text, line numbers, and the caret clear
+their contrast thresholds. Run it with:
+
+```bash
+swift test
+```
+
+Contrast is also worth an eye check: launch in dark appearance, open a
+multi-screen document, and confirm the canvas, gutter, divider, status bar,
+caret, and selection all read correctly, then switch appearance with text
+selected.
+
