@@ -69,7 +69,7 @@ final class RecoveryCoordinator {
         takeOwnership()
     }
 
-    // MARK: - Document events (wired by the app in U3)
+    // MARK: - Document events (called by the store)
 
     /// The document was edited. Schedules a debounced capture, replacing any
     /// pending one, so a burst of edits produces a single write.
