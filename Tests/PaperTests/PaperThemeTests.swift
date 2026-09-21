@@ -44,8 +44,8 @@ final class PaperThemeTests: XCTestCase {
     // MARK: - R6: the light appearance is unchanged
 
     func testLightTokensKeepShippedValues() throws {
-        // Tolerance absorbs the generic-RGB to sRGB conversion of the values
-        // Paper shipped before the palette became sRGB-based.
+        // The light tokens are declared in sRGB with these exact components,
+        // so an exact comparison is available.
         let shipped: [(NSColor, (CGFloat, CGFloat, CGFloat))] = [
             (PaperTheme.nsAccent, (0.91, 0.31, 0.06)),
             (PaperTheme.nsEditorBackground, (0.99, 0.99, 0.98)),
@@ -57,9 +57,9 @@ final class PaperThemeTests: XCTestCase {
 
         for (token, expected) in shipped {
             let color = try resolved(token, in: lightAppearance)
-            XCTAssertEqual(color.redComponent, expected.0, accuracy: 0.02)
-            XCTAssertEqual(color.greenComponent, expected.1, accuracy: 0.02)
-            XCTAssertEqual(color.blueComponent, expected.2, accuracy: 0.02)
+            XCTAssertEqual(color.redComponent, expected.0, accuracy: 0.001)
+            XCTAssertEqual(color.greenComponent, expected.1, accuracy: 0.001)
+            XCTAssertEqual(color.blueComponent, expected.2, accuracy: 0.001)
         }
     }
 
@@ -159,7 +159,6 @@ final class PaperThemeTests: XCTestCase {
         for name in variants {
             let canvas = try resolved(PaperTheme.nsEditorBackground, in: name)
             let lightCanvas = try resolved(PaperTheme.nsEditorBackground, in: lightAppearance)
-            XCTAssertEqual(canvas.redComponent, canvas.redComponent)
             XCTAssertLessThan(
                 luminance(canvas), luminance(lightCanvas),
                 "\(name.rawValue) resolved to the light canvas"
