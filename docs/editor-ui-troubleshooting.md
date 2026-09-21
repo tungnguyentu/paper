@@ -214,3 +214,36 @@ multi-screen document, and confirm the canvas, gutter, divider, status bar,
 caret, and selection all read correctly, then switch appearance with text
 selected.
 
+
+## Unsaved work recovery
+
+Paper keeps an app-managed recovery copy of the in-progress document under
+`Application Support/<bundle id>/recovery/` (`Stores/RecoveryStore.swift`).
+It holds the document text plus the title, the file it came from when it had
+one, a content digest of that file, and when the copy was last written. The
+copy is plain JSON and is **not encrypted**.
+
+Rules that must stay true:
+
+- **Quitting is not a discard event.** The copy is discarded only when the
+  document is saved, the user explicitly discards it, or the document is
+  replaced. Every path that clears the modified flag routes through one
+  funnel in `Stores/DocumentStore.swift`; a new path that clears the flag
+  without going through it will strand a copy and resurrect stale text.
+- **Recovered copies never expire.** They re-announce on every launch until
+  they are saved or discarded. Dismissing the notice hides it without
+  discarding; discarding lives in the overflow menu behind its own
+  confirmation.
+- **The sentinel is notice wording only.** `Stores/LaunchSentinel.swift`
+  records whether the last session ended gracefully. Nothing about the copy's
+  existence, restoration, or discard may depend on it.
+- **The digest is checked twice and never refreshed.** It is compared at
+  restore and again immediately before every save to an attached path; a
+  mismatch detaches the document instead of writing. Captures must never
+  recompute it, or an external change would be absorbed into the check.
+
+### Proving recovery still works
+
+Type without saving, then `pkill -9 -x Paper` (crash) or quit normally
+(clean exit). Relaunch: the text must return marked as modified in both
+cases. Then save and relaunch again: no restore, no leftover copy.
