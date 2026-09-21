@@ -17,7 +17,7 @@ import SwiftUI
 ///   moment, which is what makes an app paint light after launching in dark.
 enum PaperTheme {
 
-    // MARK: - Light palette (the values Paper shipped before dark mode)
+    // MARK: - Light palette
 
     private static let lightAccent = NSColor(srgbRed: 0.91, green: 0.31, blue: 0.06, alpha: 1)
     private static let lightEditorBackground = NSColor(srgbRed: 0.99, green: 0.99, blue: 0.98, alpha: 1)
@@ -53,20 +53,13 @@ enum PaperTheme {
 
     // MARK: - Adaptive color construction
 
-    /// One token, two values. The vibrant and high-contrast appearance names
-    /// are matched explicitly so a window drawn with vibrancy does not fall
-    /// back to the light value.
+    /// One token, two values. `bestMatch(from:)` is AppKit's own dark-mode
+    /// test: it ranks the vibrant and high-contrast appearance names under
+    /// their base names, so a window drawn with vibrancy resolves dark rather
+    /// than falling back to light.
     private static func adaptive(light: NSColor, dark: NSColor) -> NSColor {
         NSColor(name: nil) { appearance in
-            switch appearance.name {
-            case .darkAqua,
-                 .vibrantDark,
-                 .accessibilityHighContrastDarkAqua,
-                 .accessibilityHighContrastVibrantDark:
-                return dark
-            default:
-                return light
-            }
+            appearance.bestMatch(from: [.aqua, .darkAqua]) == .darkAqua ? dark : light
         }
     }
 }
