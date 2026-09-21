@@ -26,12 +26,32 @@ final class DocumentStore {
     /// Drives the restore notice's wording only.
     private(set) var recoveredAfterUnexpectedExit = false
 
+    /// Whether the recovery notice was dismissed. Dismissing hides the notice
+    /// without discarding the recovered work.
+    var recoveryNoticeDismissed = false
+    /// Whether the recovery announcement was already posted, so it is spoken
+    /// once no matter how many windows render the notice.
+    var recoveryAnnouncementPosted = false
+    /// Whether the discard confirmation is presented. Separate from the
+    /// error alert so the two can never race the same presentation.
+    var showingDiscardConfirmation = false
+
     init() {
         text = "Welcome to Paper\n\nA straightforward place to write. Open a text file or simply start typing."
     }
 
     var title: String { documentTitle }
-    var subtitle: String { fileURL?.lastPathComponent ?? "Not saved yet" }
+    var subtitle: String {
+        if let fileURL {
+            return fileURL.lastPathComponent
+        }
+        // A detached recovery still came from somewhere; say so, so the user
+        // does not mistake it for an ordinary unsaved edit.
+        if isRecovered, let source = recoveredSourcePath {
+            return "Recovered from \(URL(fileURLWithPath: source).lastPathComponent)"
+        }
+        return "Not saved yet"
+    }
     var wordCount: Int { text.split { $0.isWhitespace || $0.isNewline }.count }
     var lineCount: Int { max(text.components(separatedBy: .newlines).count, 1) }
 
@@ -104,6 +124,13 @@ final class DocumentStore {
         clearModifiedFlag(discardingRecovery: true)
     }
 
+    /// Discards recovered work deliberately: clears the copy and returns the
+    /// document to a fresh state.
+    func discardRecoveredWork() {
+        newDocument()
+        recoveryNoticeDismissed = true
+    }
+
     /// Applies a recovery payload at launch. Attaches to the recorded file
     /// only when it still matches; otherwise presents the work detached from
     /// that path. Returns whether the restored work was detached.
@@ -132,6 +159,8 @@ final class DocumentStore {
         isRecovered = true
         recoveredSourcePath = payload.filePath
         recoveredAfterUnexpectedExit = unexpectedExit
+        recoveryNoticeDismissed = false
+        recoveryAnnouncementPosted = false
         recoveryCoordinator?.noteAttachedToFile(fileURL)
         return detached
     }

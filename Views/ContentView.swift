@@ -26,6 +26,12 @@ struct ContentView: View {
                         Button("Save As…", systemImage: "square.and.arrow.down") {
                             store.showingExporter = true
                         }
+                        if store.isRecovered {
+                            Divider()
+                            Button("Discard Recovered Work…", systemImage: "trash", role: .destructive) {
+                                store.showingDiscardConfirmation = true
+                            }
+                        }
                     } label: {
                         Label("More document actions", systemImage: "ellipsis")
                     }
@@ -52,6 +58,15 @@ struct ContentView: View {
                 Button("OK", role: .cancel) { store.lastError = nil }
             } message: {
                 Text(store.lastError ?? "")
+            }
+            .alert(
+                "Discard recovered work?",
+                isPresented: $store.showingDiscardConfirmation
+            ) {
+                Button("Discard", role: .destructive) { store.discardRecoveredWork() }
+                Button("Cancel", role: .cancel) {}
+            } message: {
+                Text("The recovered text and its recovery copy will be permanently deleted. This cannot be undone.")
             }
     }
 }
@@ -87,6 +102,13 @@ private struct DocumentTitle: View {
                                     .frame(width: 5, height: 5)
                                     .accessibilityLabel("Modified")
                             }
+                            if store.isRecovered {
+                                Image(systemName: "arrow.uturn.backward.circle")
+                                    .font(.system(size: 10, weight: .semibold))
+                                    .foregroundStyle(.secondary)
+                                    .accessibilityLabel("Recovered")
+                                    .help("Recovered unsaved work")
+                            }
                             Image(systemName: "pencil")
                                 .font(.system(size: 10, weight: .semibold))
                                 .foregroundStyle(.secondary)
@@ -117,7 +139,8 @@ private struct DocumentTitle: View {
 
     private var accessibilityLabel: String {
         let base = "\(store.title), \(store.subtitle)"
-        return store.isDirty ? "\(base), modified" : base
+        let recovered = store.isRecovered ? ", recovered unsaved work" : ""
+        return store.isDirty ? "\(base)\(recovered), modified" : "\(base)\(recovered)"
     }
 
     private func beginRename() {

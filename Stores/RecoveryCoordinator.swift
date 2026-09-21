@@ -57,6 +57,10 @@ final class RecoveryCoordinator {
     private var attachDigest: String?
     private var attachDigestPath: String?
     private var cleanGeneration = 0
+    /// Whether the current failure streak was already surfaced. A failing
+    /// capture reports once; only a later success re-arms the report, so a
+    /// full disk does not pop an alert on every tick.
+    private var failureReported = false
 
     init(store: RecoveryStore, document: DocumentStore, configuration: Configuration = Configuration()) {
         self.store = store
@@ -208,11 +212,11 @@ final class RecoveryCoordinator {
         let snapshot = makePayload()
         do {
             try store.write(snapshot)
-            lastSuccessfulWriteAt = snapshot.lastWrittenAt
-            lastError = nil
-            onDidWrite?()
+            recordSuccess(at: snapshot.lastWrittenAt)
             return true
         } catch {
+            // Termination is the only caller; an alert then would be noise on
+            // top of a dying app, so the failure stays on the coordinator.
             lastError = Self.failureMessage(underlying: error, lastGood: lastSuccessfulWriteAt)
             return false
         }
@@ -251,11 +255,10 @@ final class RecoveryCoordinator {
         } else {
             do {
                 try store.write(snapshot)
-                lastSuccessfulWriteAt = snapshot.lastWrittenAt
-                lastError = nil
+                recordSuccess(at: snapshot.lastWrittenAt)
                 onDidWrite?()
             } catch {
-                lastError = Self.failureMessage(underlying: error, lastGood: lastSuccessfulWriteAt)
+                recordFailure(Self.failureMessage(underlying: error, lastGood: lastSuccessfulWriteAt))
             }
         }
     }
@@ -269,7 +272,7 @@ final class RecoveryCoordinator {
                 try store.write(snapshot)
             } catch {
                 await MainActor.run { [weak self] in
-                    self?.lastError = Self.failureMessage(underlying: error, lastGood: self?.lastSuccessfulWriteAt)
+                    self?.recordFailure(Self.failureMessage(underlying: error, lastGood: self?.lastSuccessfulWriteAt))
                 }
                 return
             }
@@ -278,8 +281,7 @@ final class RecoveryCoordinator {
             await MainActor.run { [weak self] in
                 guard let self else { return }
                 if generation == self.cleanGeneration {
-                    self.lastSuccessfulWriteAt = snapshot.lastWrittenAt
-                    self.lastError = nil
+                    self.recordSuccess(at: snapshot.lastWrittenAt)
                     self.onDidWrite?()
                 } else {
                     try? self.store.discard()
@@ -321,6 +323,20 @@ final class RecoveryCoordinator {
             return "Couldn’t save the recovery copy (last good copy \(formatter.localizedString(for: lastGood, relativeTo: Date()))). \(error.localizedDescription)"
         }
         return "Couldn’t save the recovery copy. \(error.localizedDescription)"
+    }
+
+    private func recordSuccess(at date: Date) {
+        lastSuccessfulWriteAt = date
+        lastError = nil
+        failureReported = false
+    }
+
+    private func recordFailure(_ message: String) {
+        lastError = message
+        if !failureReported {
+            failureReported = true
+            document.lastError = message
+        }
     }
 
     // MARK: - Ownership
