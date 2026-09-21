@@ -42,9 +42,7 @@ struct ContentView: View {
                 defaultFilename: store.title
             ) { result in
                 if case let .success(url) = result {
-                    store.fileURL = url
-                    store.documentTitle = url.deletingPathExtension().lastPathComponent
-                    store.isDirty = false
+                    store.savedViaExporter(to: url)
                 }
             }
             .alert("Paper", isPresented: Binding(

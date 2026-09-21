@@ -127,6 +127,52 @@ final class RecoveryCoordinator {
         }
     }
 
+    /// The digest identifying the file at `path` for save-time validation:
+    /// the attach-time digest first, then a digest already on disk. Never a
+    /// fresh computation — that would absorb an external change into the very
+    /// check that exists to detect it.
+    func recordedDigest(forPath path: String) -> String? {
+        if attachDigestPath == path, let attachDigest {
+            return attachDigest
+        }
+        if case let .present(existing) = store.read(),
+           existing.filePath == path,
+           let prior = existing.fileDigest
+        {
+            return prior
+        }
+        return nil
+    }
+
+    // MARK: - Launch
+
+    /// Runs the launch sequence: takes stock of the previous session, restores
+    /// a present copy into a pristine document, then writes this session's
+    /// sentinel. Fully synchronous, so the app can run it in `init` before the
+    /// first window renders.
+    func performLaunch(sentinel: LaunchSentinel) -> LaunchOutcome {
+        guard isOwner else { return .ownedElsewhere }
+        let unexpectedExit = sentinel.readPriorState()
+        defer { sentinel.write() }
+        switch store.read() {
+        case .absent:
+            return .nothingToRestore
+        case let .present(payload):
+            let detached = document.applyRecoveryPayload(
+                payload,
+                checkingWith: store,
+                unexpectedExit: unexpectedExit
+            )
+            return .restored(detached: detached, unexpectedExit: unexpectedExit)
+        case let .unreadable(message):
+            document.lastError = "Paper couldn’t read its recovery copy, so it opened a fresh document. (\(message))"
+            return .restoreFailed(message: message)
+        case let .unsupportedVersion(version):
+            document.lastError = "Paper couldn’t read its recovery copy (version \(version)), so it opened a fresh document."
+            return .restoreFailed(message: "unsupported version \(version)")
+        }
+    }
+
     // MARK: - Scheduling
 
     /// Starts the periodic tick. The app calls this once; tests call `tick()`
@@ -301,6 +347,14 @@ final class RecoveryCoordinator {
         lock = fileLock
         isOwner = true
     }
+}
+
+/// What the launch sequence found.
+enum LaunchOutcome: Equatable {
+    case restored(detached: Bool, unexpectedExit: Bool)
+    case nothingToRestore
+    case restoreFailed(message: String)
+    case ownedElsewhere
 }
 
 /// An exclusive, non-blocking lock on a file.

@@ -13,6 +13,19 @@ final class DocumentStore {
     var showingExporter = false
     var lastError: String?
 
+    /// The recovery coordinator, owned by the app. Weak to avoid a retain
+    /// cycle: the coordinator already holds this store.
+    weak var recoveryCoordinator: RecoveryCoordinator?
+
+    /// Whether this document was restored from a recovery copy at launch.
+    private(set) var isRecovered = false
+    /// The file the recovered work came from, whether or not it stayed
+    /// attached. Nil unless the document was recovered.
+    private(set) var recoveredSourcePath: String?
+    /// Whether the previous session ended without removing its sentinel.
+    /// Drives the restore notice's wording only.
+    private(set) var recoveredAfterUnexpectedExit = false
+
     init() {
         text = "Welcome to Paper\n\nA straightforward place to write. Open a text file or simply start typing."
     }
@@ -26,13 +39,15 @@ final class DocumentStore {
         text = ""
         fileURL = nil
         documentTitle = "Untitled Document"
-        isDirty = false
         cursorLine = 1
+        recoveryCoordinator?.noteAttachedToFile(nil)
+        clearModifiedFlag(discardingRecovery: true)
     }
 
     func textDidChange(_ newText: String) {
         text = newText
         isDirty = true
+        recoveryCoordinator?.noteEdited()
     }
 
     func open(url: URL) {
@@ -42,8 +57,9 @@ final class DocumentStore {
             text = try String(contentsOf: url, encoding: .utf8)
             fileURL = url
             documentTitle = url.deletingPathExtension().lastPathComponent
-            isDirty = false
             cursorLine = 1
+            recoveryCoordinator?.noteAttachedToFile(url)
+            clearModifiedFlag(discardingRecovery: true)
         } catch {
             lastError = "Couldn’t open \(url.lastPathComponent)."
         }
@@ -55,12 +71,81 @@ final class DocumentStore {
             showingExporter = true
             return
         }
+        if destination == fileURL,
+           let recorded = recoveryCoordinator?.recordedDigest(forPath: destination.path),
+           RecoveryStore.digest(ofFileAt: destination) != recorded
+        {
+            // The file changed on disk since this document was attached to it.
+            // Detach rather than overwrite, and require the user to choose a
+            // destination.
+            fileURL = nil
+            recoveryCoordinator?.noteAttachedToFile(nil)
+            lastError = "“\(destination.lastPathComponent)” changed on disk. The document was detached to protect it — choose where to save."
+            showingExporter = true
+            return
+        }
         do {
             try text.write(to: destination, atomically: true, encoding: .utf8)
             fileURL = destination
-            isDirty = false
+            recoveryCoordinator?.noteAttachedToFile(destination)
+            clearModifiedFlag(discardingRecovery: true)
         } catch {
             lastError = "Couldn’t save \(destination.lastPathComponent)."
+        }
+    }
+
+    /// Called when the Save As exporter completes. Carries the same recovery
+    /// semantics as `save()`: the previously open document is replaced, so
+    /// its copy is discarded.
+    func savedViaExporter(to url: URL) {
+        fileURL = url
+        documentTitle = url.deletingPathExtension().lastPathComponent
+        recoveryCoordinator?.noteAttachedToFile(url)
+        clearModifiedFlag(discardingRecovery: true)
+    }
+
+    /// Applies a recovery payload at launch. Attaches to the recorded file
+    /// only when it still matches; otherwise presents the work detached from
+    /// that path. Returns whether the restored work was detached.
+    @discardableResult
+    func applyRecoveryPayload(
+        _ payload: RecoveryPayload,
+        checkingWith recoveryStore: RecoveryStore,
+        unexpectedExit: Bool
+    ) -> Bool {
+        text = payload.text
+        documentTitle = payload.title
+        cursorLine = 1
+        let detached: Bool
+        switch recoveryStore.fileMatch(for: payload) {
+        case .notFileBacked:
+            fileURL = nil
+            detached = false
+        case .matches:
+            fileURL = payload.filePath.map(URL.init(fileURLWithPath:))
+            detached = false
+        case .differs, .missing:
+            fileURL = nil
+            detached = true
+        }
+        isDirty = true
+        isRecovered = true
+        recoveredSourcePath = payload.filePath
+        recoveredAfterUnexpectedExit = unexpectedExit
+        recoveryCoordinator?.noteAttachedToFile(fileURL)
+        return detached
+    }
+
+    /// The single path through which the document may become clean. Every
+    /// caller names whether the recovery copy goes with it, so no path that
+    /// clears the flag can strand a copy on disk.
+    private func clearModifiedFlag(discardingRecovery: Bool) {
+        isDirty = false
+        isRecovered = false
+        recoveredSourcePath = nil
+        recoveredAfterUnexpectedExit = false
+        if discardingRecovery {
+            recoveryCoordinator?.noteCleaned()
         }
     }
 
@@ -71,6 +156,7 @@ final class DocumentStore {
         guard !cleanedTitle.isEmpty else { return }
         documentTitle = cleanedTitle
         isDirty = true
+        recoveryCoordinator?.noteEdited()
     }
 
     func updateCursorLine(_ line: Int) {
